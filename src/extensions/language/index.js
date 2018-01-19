@@ -200,14 +200,20 @@ class LanguageBlocks {
         if (this.pending) {
             util.yield();
         } else {
+            this.pending = true;
+            this.lastRecognition = null;
             fetch(this.MODEL_URL+args.SENTENCE)
             .then(response => response.json())
             .then((response) => {
                 this.pending = false;
                 this.lastRecognition = response;
-                /*util.startHats('whenrecognized', {
-                    INTENT: response.topScoringIntent.intent
-                });*/
+                /*
+                extensions only get edge triggered hats for now,
+                they'll trigger but then cancel execution :(
+                 
+                util.startHats('language.whenrecognized', {
+                    intent: response.topScoringIntent.intent
+                }); */
             })
             .catch((error) => {
                 this.pending = false;
@@ -221,12 +227,9 @@ class LanguageBlocks {
      * @param {object} util - utility object provided by the runtime.
      */
     whenrecognized (args, util) {
-        if (this.lastRecognition &&
-            this.lastRecognition.topScoringIntent.intent == args.INTENT &&
-            !this.lastRecognition.triggered) {
-            this.lastRecognition.triggered = true;
-            return true;
-        }
+        //sadly, extensions currently only get edge-triggered hats...
+        return (this.lastRecognition && 
+            this.lastRecognition.topScoringIntent.intent == args.INTENT);
     }
 
     /**
