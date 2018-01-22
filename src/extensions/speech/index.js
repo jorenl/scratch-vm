@@ -20,7 +20,7 @@ const blockIconURI = 'data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNv
  * @param {Runtime} runtime - the runtime instantiating this block package.
  * @constructor
  */
-class LanguageBlocks {
+class SpeechBlocks {
     constructor (runtime) {
         /**
          * The runtime instantiating this block package.
@@ -67,73 +67,41 @@ class LanguageBlocks {
         this.startSpeechRecogntion();
     }
 
-    /**
-     * The key to load & store a target's pen-related state.
-     * @type {string}
-     */
-    static get STATE_KEY () {
-        return 'Scratch.speech';
-    }
-
-    /**
-     * Initialize intent menu with localized strings
-     * @returns {array} of the localized text and values for each menu element
-     * @private
-     */
-    _initIntentMenu () {
-        return [
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_0',
-                    default: 'did not understand',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'None'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_1',
-                    default: 'describe surroundings',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Describe surroundings'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_2',
-                    default: 'help',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Help'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_3',
-                    default: 'pick up',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Pick up'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_4',
-                    default: 'use tool on object',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Use tool'
-            }
-        ];
-    }
-
-    _getLanguageState (target) {
-        let langState = target.getCustomState(LanguageBlocks.STATE_KEY);
-        if (!langState) {
-            langState - Clone.simple(LanguageBlocks.DEFAULT_LANG_STATE);
-            target.setCustomState(LanguageBlocks.STATE_KEY, langState);
+    _getVoices () {
+        if (typeof speechSynthesis === 'undefined') {
+            return;
         }
-        return langState;
-    }
+    
+        const voices = speechSynthesis.getVoices();
+    
+        const scratchVoiceNames = ['Alex', 'Samantha', 'Whisper', 'Zarvox', 'Bad News',
+            'Daniel', 'Pipe Organ', 'Boing', 'Karen', 'Ralph', 'Trinoids'];
+    
+        const availableVoices = [];
+    
+        for (let i = 0; i < voices.length; i++) {
+            if (true || scratchVoiceNames.includes(voices[i].name)) { //scratchVoiceNames might be mac specific?
+                availableVoices.push(voices[i]);
+            }
+        }
+    
+        return availableVoices;
+    };
 
+    /*
+    _initVoiceMenu () {
+        let voices = this._getVoices();
+        let menu = voices.map((voice) => ({
+            text: formatMessage({
+                id: 'speech.voices.'+voice.name,
+                default: voice.name,
+                description: 'name for voice '+voice.name
+            }),
+            value: voice.name
+        }));
+        return menu;
+    }
+    */
 
     /**
      * @returns {object} metadata for this extension and its blocks.
@@ -174,7 +142,8 @@ class LanguageBlocks {
                         }
                     }
                 },
-                /*{
+                /*
+                {
                     opcode: 'setvoice',
                     blockType: BlockType.COMMAND,
                     text: formatMessage({
@@ -189,7 +158,8 @@ class LanguageBlocks {
                             defaultValue: 'default'
                         }
                     }
-                },*/
+                },
+                */
                 {
                     opcode: 'getlatestspeech',
                     blockType: BlockType.REPORTER,
@@ -201,7 +171,9 @@ class LanguageBlocks {
                 }
             ],
             menus: {
-                //voice: this._initVoiceMenu()
+                /*
+                voice: this._initVoiceMenu()
+                */
             }
         };
     }
@@ -239,40 +211,19 @@ class LanguageBlocks {
     };
 
     /**
-     * The "set voice" hat
+     * The "set voice" block
      * @param {object} args - the block arguments.
      * @param {object} util - utility object provided by the runtime.
      */
 
-    setVoice (args) {
+    setvoice (args) {
         if (args.VOICE === 'Random') {
-            const voices = this.getVoices();
+            const voices = this._getVoices();
             const index = Math.floor(Math.random() * voices.length);
             this.current_voice_name = voices[index].name;
         } else {
             this.current_voice_name = args.VOICE;
         }
-    };
-    
-    getVoices () {
-        if (typeof speechSynthesis === 'undefined') {
-            return;
-        }
-    
-        const voices = speechSynthesis.getVoices();
-    
-        const scratchVoiceNames = ['Alex', 'Samantha', 'Whisper', 'Zarvox', 'Bad News',
-            'Daniel', 'Pipe Organ', 'Boing', 'Karen', 'Ralph', 'Trinoids'];
-    
-        const availableVoices = [];
-    
-        for (let i = 0; i < voices.length; i++) {
-            if (scratchVoiceNames.includes(voices[i].name)) {
-                availableVoices.push(voices[i]);
-            }
-        }
-    
-        return availableVoices;
     };
 
     /**
@@ -327,7 +278,7 @@ class LanguageBlocks {
     
         this.current_utterance = new SpeechSynthesisUtterance(input);
     
-        const voices = this.getVoices();
+        const voices = this._getVoices();
         for (let i = 0; i < voices.length; i++) {
             if (this.current_voice_name === voices[i].name) {
                 this.current_utterance.voice = voices[i];
@@ -360,4 +311,4 @@ class LanguageBlocks {
     };
 }
 
-module.exports = LanguageBlocks;
+module.exports = SpeechBlocks;
