@@ -616,8 +616,7 @@ class RenderedTarget extends Target {
             // Limits test to this Drawable, so this will return true
             // even if the clone is obscured by another Drawable.
             const pickResult = this.runtime.renderer.pick(
-                x + (this.runtime.constructor.STAGE_WIDTH / 2),
-                -y + (this.runtime.constructor.STAGE_HEIGHT / 2),
+                x, y,
                 null, null,
                 [this.drawableID]
             );
@@ -831,7 +830,6 @@ class RenderedTarget extends Target {
             newTarget.effects = JSON.parse(JSON.stringify(this.effects));
             newTarget.variables = JSON.parse(JSON.stringify(this.variables));
             newTarget.lists = JSON.parse(JSON.stringify(this.lists));
-            newTarget.initDrawable();
             newTarget.updateAllDrawableProperties();
             newTarget.goBehindOther(this);
             return newTarget;
