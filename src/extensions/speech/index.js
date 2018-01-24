@@ -64,6 +64,9 @@ class SpeechBlocks {
         */
         this.current_utterance = null;
 
+
+        this.current_recognition_is_final = false;
+
         this.startSpeechRecogntion();
     }
 
@@ -112,6 +115,15 @@ class SpeechBlocks {
             name: 'Speech',
             blockIconURI: blockIconURI,
             blocks: [
+                {
+                    opcode: 'whenihearsomething',
+                    blockType: BlockType.HAT,
+                    text: formatMessage({
+                        id: 'speech.whenihearsomething',
+                        default: 'When I hear something',
+                        description: 'Hat that triggers after a whole utterance is recognized'
+                    })
+                },
                 {
                     opcode: 'whenihear',
                     blockType: BlockType.HAT,
@@ -197,6 +209,7 @@ class SpeechBlocks {
                 this.recognized_speech = results;
     
                 this.latest_speech = this.recognized_speech[0];
+                this.current_recognition_is_final = SpeechRecognitionResult.isFinal;
             }.bind(this);
     
             this.recognition.onend = function () {
@@ -209,6 +222,15 @@ class SpeechBlocks {
             this.recognition.start();
         }
     };
+
+    /**
+     * The "when i hear something hat" block
+     * @param {object} args - the block arguments.
+     * @param {object} util - utility object provided by the runtime.
+     */
+    whenihearsomething (args) {
+        return this.current_recognition_is_final;
+    }
 
     /**
      * The "set voice" block
