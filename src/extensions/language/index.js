@@ -63,7 +63,7 @@ class LanguageBlocks {
      * @returns {array} of the localized text and values for each menu element
      * @private
      */
-    _initIntentMenu () {
+    intentMenu () {
         return [
             {
                 text: formatMessage({
@@ -178,7 +178,7 @@ class LanguageBlocks {
                 }
             ],
             menus: {
-                intent: this._initIntentMenu()
+                intent: this.intentMenu() // must be static menu for now...
             }
         };
     }
