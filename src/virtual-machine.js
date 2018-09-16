@@ -105,7 +105,6 @@ class VirtualMachine extends EventEmitter {
         this.runtime.on(Runtime.BLOCKSINFO_UPDATE, blocksInfo => {
             this.emit(Runtime.BLOCKSINFO_UPDATE, blocksInfo);
         });
-
         this.runtime.on(Runtime.PERIPHERAL_LIST_UPDATE, info => {
             this.emit(Runtime.PERIPHERAL_LIST_UPDATE, info);
         });
@@ -213,18 +212,36 @@ class VirtualMachine extends EventEmitter {
         this.runtime.ioDevices.video.setProvider(videoProvider);
     }
 
-    startDeviceScan (extensionId) {
-        this.runtime.startDeviceScan(extensionId);
+    /**
+     * Tell the specified extension to scan for a peripheral.
+     * @param {string} extensionId - the id of the extension.
+     */
+    scanForPeripheral (extensionId) {
+        this.runtime.scanForPeripheral(extensionId);
     }
 
-    connectToPeripheral (extensionId, peripheralId) {
-        this.runtime.connectToPeripheral(extensionId, peripheralId);
+    /**
+     * Connect to the extension's specified peripheral.
+     * @param {string} extensionId - the id of the extension.
+     * @param {number} peripheralId - the id of the peripheral.
+     */
+    connectPeripheral (extensionId, peripheralId) {
+        this.runtime.connectPeripheral(extensionId, peripheralId);
     }
 
-    disconnectExtensionSession (extensionId) {
-        this.runtime.disconnectExtensionSession(extensionId);
+    /**
+     * Disconnect from the extension's connected peripheral.
+     * @param {string} extensionId - the id of the extension.
+     */
+    disconnectPeripheral (extensionId) {
+        this.runtime.disconnectPeripheral(extensionId);
     }
 
+    /**
+     * Returns whether the extension has a currently connected peripheral.
+     * @param {string} extensionId - the id of the extension.
+     * @return {boolean} - whether the extension has a connected peripheral.
+     */
     getPeripheralIsConnected (extensionId) {
         return this.runtime.getPeripheralIsConnected(extensionId);
     }
@@ -589,9 +606,19 @@ class VirtualMachine extends EventEmitter {
     /**
      * Delete a costume from the current editing target.
      * @param {int} costumeIndex - the index of the costume to be removed.
+     * @return {?function} A function to restore the deleted costume, or null,
+     * if no costume was deleted.
      */
     deleteCostume (costumeIndex) {
-        this.editingTarget.deleteCostume(costumeIndex);
+        const deletedCostume = this.editingTarget.deleteCostume(costumeIndex);
+        if (deletedCostume) {
+            const target = this.editingTarget;
+            return () => {
+                target.addCostume(deletedCostume);
+                this.emitTargetsUpdate();
+            };
+        }
+        return null;
     }
 
     /**
@@ -675,9 +702,20 @@ class VirtualMachine extends EventEmitter {
     /**
      * Delete a sound from the current editing target.
      * @param {int} soundIndex - the index of the sound to be removed.
+     * @return {?Function} A function to restore the sound that was deleted,
+     * or null, if no sound was deleted.
      */
     deleteSound (soundIndex) {
-        this.editingTarget.deleteSound(soundIndex);
+        const target = this.editingTarget;
+        const deletedSound = this.editingTarget.deleteSound(soundIndex);
+        if (deletedSound) {
+            const restoreFun = () => {
+                target.addSound(deletedSound);
+                this.emitTargetsUpdate();
+            };
+            return restoreFun;
+        }
+        return null;
     }
 
     /**
@@ -852,7 +890,14 @@ class VirtualMachine extends EventEmitter {
             }
             const spritePromise = this.exportSprite(targetId, 'uint8array');
             const restoreSprite = () => spritePromise.then(spriteBuffer => this.addSprite(spriteBuffer));
+            // Remove monitors from the runtime state and remove the
+            // target-specific monitored blocks (e.g. local variables)
             this.runtime.requestRemoveMonitorByTargetId(targetId);
+            const targetSpecificMonitorBlockIds = Object.keys(this.runtime.monitorBlocks._blocks)
+                .filter(key => this.runtime.monitorBlocks._blocks[key].targetId === targetId);
+            for (const blockId of targetSpecificMonitorBlockIds) {
+                this.runtime.monitorBlocks.deleteBlock(blockId);
+            }
             const currentEditingTarget = this.editingTarget;
             for (let i = 0; i < sprite.clones.length; i++) {
                 const clone = sprite.clones[i];

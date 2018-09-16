@@ -355,7 +355,16 @@ const parseScratchObject = function (object, runtime, extensions, topLevel, zip)
     const sprite = new Sprite(blocks, runtime);
     // Sprite/stage name from JSON.
     if (object.hasOwnProperty('objName')) {
-        sprite.name = topLevel ? 'Stage' : object.objName;
+        if (topLevel && object.objName !== 'Stage') {
+            for (const child of object.children) {
+                if (!child.hasOwnProperty('objName') && child.target === object.objName) {
+                    child.target = 'Stage';
+                }
+            }
+            object.objName = 'Stage';
+        }
+
+        sprite.name = object.objName;
     }
     // Costumes from JSON.
     const costumePromises = [];
@@ -504,6 +513,22 @@ const parseScratchObject = function (object, runtime, extensions, topLevel, zip)
     // If included, parse any and all scripts/blocks on the object.
     if (object.hasOwnProperty('scripts')) {
         parseScripts(object.scripts, blocks, addBroadcastMsg, getVariableId, extensions, blockComments);
+    }
+
+    // If there are any comments referring to a numerical block ID, make them
+    // workspace comments. These are comments that were originally created as
+    // block comments, detached from the block, and then had the associated
+    // block deleted.
+    // These comments should be imported as workspace comments
+    // by making their blockIDs (which currently refer to non-existing blocks)
+    // null (See #1452).
+    for (const commentIndex in blockComments) {
+        const currBlockComments = blockComments[commentIndex];
+        currBlockComments.forEach(c => {
+            if (typeof c.blockId === 'number') {
+                c.blockId = null;
+            }
+        });
     }
 
     // Update stage specific blocks (e.g. sprite clicked <=> stage clicked)
@@ -816,6 +841,10 @@ const parseBlock = function (sb2block, addBroadcastMsg, getVariableId, extension
                     // Update commentIndex
                     commentIndex = parsedBlockDesc[1];
                 }
+                // Check if innerBlocks is an empty list.
+                // This indicates that all the inner blocks from the sb2 have
+                // unknown opcodes and have been skipped.
+                if (innerBlocks.length === 0) continue;
                 let previousBlock = null;
                 for (let j = 0; j < innerBlocks.length; j++) {
                     if (j === 0) {

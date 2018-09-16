@@ -534,12 +534,19 @@ class RenderedTarget extends Target {
     /**
      * Delete a costume by index.
      * @param {number} index Costume index to be deleted
+     * @return {?object} The costume that was deleted or null
+     * if the index was out of bounds of the costumes list or
+     * this target only has one costume.
      */
     deleteCostume (index) {
         const originalCostumeCount = this.sprite.costumes.length;
-        if (originalCostumeCount === 1) return;
+        if (originalCostumeCount === 1) return null;
 
-        this.sprite.deleteCostumeAt(index);
+        if (index < 0 || index >= originalCostumeCount) {
+            return null;
+        }
+
+        const deletedCostume = this.sprite.deleteCostumeAt(index);
 
         if (index === this.currentCostume && index === originalCostumeCount - 1) {
             this.setCostume(index - 1);
@@ -550,6 +557,7 @@ class RenderedTarget extends Target {
         }
 
         this.runtime.requestTargetsUpdate(this);
+        return deletedCostume;
     }
 
     /**
@@ -585,12 +593,17 @@ class RenderedTarget extends Target {
     /**
      * Delete a sound by index.
      * @param {number} index Sound index to be deleted
+     * @return {object} The deleted sound object, or null if no sound was deleted.
      */
     deleteSound (index) {
-        this.sprite.sounds = this.sprite.sounds
-            .slice(0, index)
-            .concat(this.sprite.sounds.slice(index + 1));
+        // Make sure the sound index is not out of bounds
+        if (index < 0 || index >= this.sprite.sounds.length) {
+            return null;
+        }
+        // Delete the sound at the given index
+        const deletedSound = this.sprite.sounds.splice(index, 1)[0];
         this.runtime.requestTargetsUpdate(this);
+        return deletedSound;
     }
 
     /**
