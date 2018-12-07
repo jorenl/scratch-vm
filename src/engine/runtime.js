@@ -466,6 +466,20 @@ class Runtime extends EventEmitter {
     }
 
     /**
+     * Event name for language extension open learn window
+     * @const {string}
+     */
+    static get EXT_LANGUAGE_OPEN_LEARN_WINDOW () {
+        return 'EXT_LANGUAGE_OPEN_LEARN_WINDOW';
+    }
+    static get EXT_LANGUAGE_SELECT_MODEL () {
+        return 'EXT_LANGUAGE_SELECT_MODEL';
+    }
+    static get EXT_LANGUAGE_MODEL_SELECTED () {
+        return 'EXT_LANGUAGE_MODEL_SELECTED';
+    }
+
+    /**
      * How rapidly we try to step threads by default, in ms.
      */
     static get THREAD_STEP_INTERVAL () {

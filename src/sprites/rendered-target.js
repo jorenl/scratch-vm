@@ -152,6 +152,13 @@ class RenderedTarget extends Target {
          * @type {string}
          */
         this.videoState = RenderedTarget.VIDEO_STATE.ON;
+
+        /**
+         * The identifier of the LUIS language model loaded on this project for
+         * the language extension, if any. Stored on the stage.
+         * @type {string}
+         */
+        this.languageModel = null;
     }
 
     /**
@@ -1131,7 +1138,8 @@ class RenderedTarget extends Target {
             tempo: this.tempo,
             volume: this.volume,
             videoTransparency: this.videoTransparency,
-            videoState: this.videoState
+            videoState: this.videoState,
+            languageModel: this.languageModel
 
         };
     }

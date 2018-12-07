@@ -117,6 +117,12 @@ class VirtualMachine extends EventEmitter {
         this.runtime.on(Runtime.PERIPHERAL_SCAN_TIMEOUT, () =>
             this.emit(Runtime.PERIPHERAL_SCAN_TIMEOUT)
         );
+        this.runtime.on(Runtime.EXT_LANGUAGE_OPEN_LEARN_WINDOW, (opts) => 
+            this.emit(Runtime.EXT_LANGUAGE_OPEN_LEARN_WINDOW, opts)
+        );
+        this.runtime.on(Runtime.EXT_LANGUAGE_SELECT_MODEL, (opts) => 
+            this.emit(Runtime.EXT_LANGUAGE_SELECT_MODEL, opts)
+        );
 
         this.extensionManager = new ExtensionManager(this.runtime);
 
@@ -435,13 +441,16 @@ class VirtualMachine extends EventEmitter {
 
         targets = targets.filter(target => !!target);
 
+        // install targets on runtime, so static data becomes available.
+        targets.forEach(target => {
+            this.runtime.targets.push(target);
+            (/** @type RenderedTarget */ target).updateAllDrawableProperties();
+            // Ensure unique sprite name
+            if (target.isSprite()) this.renameSprite(target.id, target.getName());
+        });
+
+        //then load extensions, then make the VM aware
         return Promise.all(extensionPromises).then(() => {
-            targets.forEach(target => {
-                this.runtime.targets.push(target);
-                (/** @type RenderedTarget */ target).updateAllDrawableProperties();
-                // Ensure unique sprite name
-                if (target.isSprite()) this.renameSprite(target.id, target.getName());
-            });
             // Select the first target for editing, e.g., the first sprite.
             if (wholeProject && (targets.length > 1)) {
                 this.editingTarget = targets[1];

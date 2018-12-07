@@ -8,6 +8,8 @@ const MathUtil = require('../../util/math-util');
 const RenderedTarget = require('../../sprites/rendered-target');
 const log = require('../../util/log');
 
+const luis = require('../../../../../../scratch-language-learning/luis.js');
+
 /**
  * Icon svg to be displayed at the left edge of each extension block, encoded as a data URI.
  * @type {string}
@@ -32,167 +34,137 @@ class LanguageBlocks {
         this.lastRecognition = null;
         this.MODEL_URL = "https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/dd176c9e-a275-42e1-967c-47323280031b?subscription-key=8da5e785e75644c28dab3cf565fcaa73&verbose=true&timezoneOffset=0&q="
 
-        /*
-         * bind events here
-         */
-        //runtime.on('...', ...
+        // create LUIS client
+        var luis_app_id = this.MODEL_URL.match(/apps\/([^/?&]+)/)[1];
+        var luis_app_key = this.MODEL_URL.match(/subscription-key=([^/?&]+)/)[1];
+
+        this.luisClient = new luis.APIClient({
+            authoring_api_key: luis_app_key,
+            endpoint_api_key: luis_app_key
+        });
+
+        // this.model = this.luisClient.getModel(luis_app_id, '0.1');
+        this.model = null;
+
+        this.awaitingModelLoadPending = [];
     }
 
     /**
-     * The key to load & store a target's pen-related state.
-     * @type {string}
+     * The language model stored on the stage target and saved to sb3
      */
-    static get STATE_KEY () {
-        return 'Scratch.language';
+    get globalLanguageModel () {
+        const stage = this.runtime.getTargetForStage();
+        if (stage) {
+            return stage.languageModel;
+        }
+        return null;
+    }
+    set globalLanguageModel (model) {
+        const stage = this.runtime.getTargetForStage();
+        if (stage) {
+            stage.languageModel = model;
+        }
+        return model;
     }
 
     /**
-     * The default music-related state, to be used when a target has no existing music state.
-     * @type {LanguageState}
+     * @returns {object} metadata for this extension and its blocks.
      */
-    static get DEFAULT_MUSIC_STATE () {
-        return {
-            currentInstrument: 0
-        };
-    }
+    getInfo () {
+        return this._awaitStageTargetExists()
+        .then( () => this._pickModel() )
+        .then( () => {
+            var entityReporters = [];
 
-    /** event handlers go here **/
+            this.model.data.entities.forEach((entity) => {
+                var op = 'entity_'+entity.name;
+
+                this[op] = this._getEntity.bind(this, entity.name);
+
+                entityReporters.push({
+                    opcode: op,
+                    blockType: BlockType.REPORTER,
+                    text: entity.name
+                });
+            });
+            
+            return {
+                id: 'language',
+                name: 'Language',
+                blockIconURI: blockIconURI,
+                blocks: [
+                    {
+                        opcode: 'understand',
+                        blockType: BlockType.COMMAND,
+                        text: formatMessage({
+                            id: 'language.understand',
+                            default: 'understand [SENTENCE]',
+                            description: 'try to understand a sentence'
+                        }),
+                        arguments: {
+                            SENTENCE: {
+                                type: ArgumentType.STRING,
+                                defaultValue: 'Open the door with the crowbar'
+                            }
+                        }
+                    },
+                    {
+                        opcode: 'lastintent',
+                        blockType: BlockType.REPORTER,
+                        text: formatMessage({
+                            id: 'language.lastintent',
+                            default: 'meaning',
+                            description: 'last intent from language recognition'
+                        })
+                    },
+                    {
+                        opcode: 'whenrecognized',
+                        blockType: BlockType.HAT,
+                        text: formatMessage({
+                            id: 'language.whenrecognized',
+                            default: 'when sentence means [INTENT]',
+                            description: 'this hat will run when a sentence meaning is recognized'
+                        }),
+                        arguments: {
+                            INTENT: {
+                                type: ArgumentType.STRING,
+                                menu: 'intent',
+                                defaultValue: 'Use tool'
+                            }
+                        }
+                    },
+                    {
+                        opcode: 'openlearnwindow',
+                        blockType: BlockType.COMMAND,
+                        text: formatMessage({
+                            id: 'language.openlearnwindow',
+                            default: 'open learn window',
+                            description: 'label for this hacky block that opens the learn window from the VM'
+                        })
+                    }
+                ].concat(entityReporters),
+
+                menus: {
+                    intent: this._intentMenu() // must be static menu for now...
+                }
+            }
+        });
+    }
 
     /**
      * Initialize intent menu with localized strings
      * @returns {array} of the localized text and values for each menu element
      * @private
      */
-    intentMenu () {
-        return [
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_0',
-                    default: 'did not understand',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'None'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_1',
-                    default: 'describe surroundings',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Describe surroundings'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_2',
-                    default: 'help',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Help'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_3',
-                    default: 'pick up',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Pick up'
-            },
-            {
-                text: formatMessage({
-                    id: 'language.intentMenu.intent_A_4',
-                    default: 'use tool on object',
-                    description: 'intent label for dropdown'
-                }),
-                value: 'Use tool'
-            }
-        ];
-    }
-
-    _getLanguageState (target) {
-        let langState = target.getCustomState(LanguageBlocks.STATE_KEY);
-        if (!langState) {
-            langState - Clone.simple(LanguageBlocks.DEFAULT_LANG_STATE);
-            target.setCustomState(LanguageBlocks.STATE_KEY, langState);
-        }
-        return langState;
-    }
-
-
-    /**
-     * @returns {object} metadata for this extension and its blocks.
-     */
-    getInfo () {
-        return {
-            id: 'language',
-            name: 'Language',
-            blockIconURI: blockIconURI,
-            blocks: [
-                {
-                    opcode: 'understand',
-                    blockType: BlockType.COMMAND,
-                    text: formatMessage({
-                        id: 'language.understand',
-                        default: 'understand [SENTENCE]',
-                        description: 'try to understand a sentence'
-                    }),
-                    arguments: {
-                        SENTENCE: {
-                            type: ArgumentType.STRING,
-                            defaultValue: 'Open the door with the crowbar'
-                        }
-                    }
-                },
-                {
-                    opcode: 'whenrecognized',
-                    blockType: BlockType.HAT,
-                    text: formatMessage({
-                        id: 'language.whenrecognized',
-                        default: 'when sentence means [INTENT]',
-                        description: 'this hat will run when a sentence meaning is recognized'
-                    }),
-                    arguments: {
-                        INTENT: {
-                            type: ArgumentType.STRING,
-                            menu: 'intent',
-                            defaultValue: 'Use tool'
-                        }
-                    }
-                },
-                {
-                    opcode: 'tool',
-                    blockType: BlockType.REPORTER,
-                    text: formatMessage({
-                        id: 'language.entity.tool',
-                        default: 'tool',
-                        description: 'the tool entity'
-                    })
-                },
-                {
-                    opcode: 'object',
-                    blockType: BlockType.REPORTER,
-                    text: formatMessage({
-                        id: 'language.entity.object',
-                        default: 'object',
-                        description: 'the tool entity'
-                    })
-                }
-            ],
-            menus: {
-                intent: this.intentMenu() // must be static menu for now...
-            }
-        };
-    }
-
-    getHats () {
-        return {
-            whenrecognized: {
-                restartExistingThreads: true
-            }
-        };
+    _intentMenu () {
+        return this.model.data.intents.map((intent) => ({
+            text: intent.name,
+            value: intent.name
+        }));
     }
 
     /**
-     * The pen "understand" block...
+     * The language "understand" block...
      * @param {object} args - the block arguments.
      * @param {object} util - utility object provided by the runtime.
      */
@@ -202,8 +174,8 @@ class LanguageBlocks {
         } else {
             this.pending = true;
             this.lastRecognition = null;
-            fetch(this.MODEL_URL+args.SENTENCE)
-            .then(response => response.json())
+
+            this.model.understand(args.SENTENCE)
             .then((response) => {
                 this.pending = false;
                 this.lastRecognition = response;
@@ -222,6 +194,15 @@ class LanguageBlocks {
     }
 
     /**
+     * The  "meaning" block, which reports the last recognized intent
+     * @param {object} args - the block arguments.
+     * @param {object} util - utility object provided by the runtime.
+     */
+    lastintent (args, util) {
+        return this.lastRecognition ? this.lastRecognition.topScoringIntent.intent : '';
+    }
+
+    /**
      * The "when recognized" block...
      * @param {object} args - the block arguments.
      * @param {object} util - utility object provided by the runtime.
@@ -230,6 +211,14 @@ class LanguageBlocks {
         //sadly, extensions currently only get edge-triggered hats...
         return (this.lastRecognition && 
             this.lastRecognition.topScoringIntent.intent == args.INTENT);
+    }
+
+    openlearnwindow (args, util) {
+        console.log('Open learn window!');
+        this.runtime.emit('EXT_LANGUAGE_OPEN_LEARN_WINDOW', {
+            model: this.model,
+            lastRecognition: this.lastRecognition
+        });
     }
 
     /**
@@ -260,6 +249,84 @@ class LanguageBlocks {
         return "";
     }
 
+    _awaitModelLoadPending() {
+        return new Promise((resolve) => {
+            this.awaitingModelLoadPending.push(resolve);
+        });
+    }
+    _resolveModelLoadPending() {
+        this.awaitingModelLoadPending.forEach(resolve => resolve());
+        this.awaitingModelLoadPending = [];
+        this.modelLoadPending = false;
+    }
+
+    _awaitStageTargetExists() {
+        if (this.runtime.getTargetForStage()) {
+            return Promise.resolve();
+        } else {
+            return new Promise((resolve, reject) => {
+                const onTargetWasCreated = (newTarget, sourceTarget) => {
+                    if (this.runtime.getTargetForStage()) {
+                        this.runtime.off('targetWasCreated', onTargetWasCreated);
+                        resolve();
+                    }
+                }
+                this.runtime.on('targetWasCreated', onTargetWasCreated); 
+            });
+        }
+    }
+
+    _pickModel() {
+        if (this.modelLoadPending) {
+            return this._awaitModelLoadPending();
+        } else if (this.model) {
+            if (this.model.data) {
+                return Promise.resolve();
+            } else {
+                return Promise.reject(); // TODO: I don't think this is the right place to do this.
+            }
+        } else if (this.globalLanguageModel !== null) {
+            // this project has a language model stored on its state, load.
+            this.modelLoadPending = true;
+            return this._loadModel(this.globalLanguageModel)
+            .then( () => this._resolveModelLoadPending());
+        } else {
+            // open the UI for picking a model.
+            // TODO: ideally, just provision a model per project.
+            this.modelLoadPending = true;
+            return (
+                this.luisClient.getModelList()
+                .then(models => new Promise((resolve) => {
+                    this.runtime.once('EXT_LANGUAGE_MODEL_SELECTED', (selection) => resolve(selection));
+                    this.runtime.emit('EXT_LANGUAGE_SELECT_MODEL', {models: models});
+                }))
+                .then( (selection) => ( (selection == 'CREATE_NEW_MODEL') ? 
+                    this._createNewModel() :
+                    this._loadModel(selection)
+                ))
+                .then( () => this._resolveModelLoadPending())
+            );
+        }
+    }
+
+    _loadModel(model_app_id) {
+        this.model = this.luisClient.getModel(model_app_id, '0.1');
+        this.globalLanguageModel = this.model.appid;
+        return this.model.loadData();
+    }
+
+    _createNewModel() {
+        return this.luisClient.createModel().then(model => 
+            model.loadData()
+            .then( () => model.startTraining() )
+            .then( () => model.waitForTrainingToComplete() )
+            .then( () => model.publish() )
+            .then( () => {
+                this.model = model;
+                this.globalLanguageModel = model.appid;
+            })
+        );
+    }
 }
 
 module.exports = LanguageBlocks;

@@ -205,14 +205,17 @@ class ExtensionManager {
      * @returns {Promise} resolved once the extension is fully registered or rejected on failure
      */
     _registerInternalExtension (extensionObject) {
-        const extensionInfo = extensionObject.getInfo();
         const fakeWorkerId = this.nextExtensionWorker++;
-        const serviceName = `extension_${fakeWorkerId}_${extensionInfo.id}`;
-        return dispatch.setService(serviceName, extensionObject)
-            .then(() => {
-                dispatch.call('extensions', 'registerExtensionService', serviceName);
-                return serviceName;
-            });
+        let serviceName = null;
+
+        return Promise.resolve()
+        .then( () => extensionObject.getInfo() )
+        .then( (extensionInfo) => {
+            serviceName = `extension_${fakeWorkerId}_${extensionInfo.id}`;
+        })
+        .then( () => dispatch.setService(serviceName, extensionObject) )
+        .then( () => dispatch.call('extensions', 'registerExtensionService', serviceName) )
+        .then( () => serviceName );
     }
 
     /**
